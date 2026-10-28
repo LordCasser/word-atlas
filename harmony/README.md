@@ -90,7 +90,7 @@ ArkWeb 的 localStorage 落在 el2 cache 层，**没有持久化承诺**（可�
 
 ## 真机验证清单
 
-- [ ] 冷启动：启动页 → 首页正常渲染，无白屏（`hilog | grep WordAtlas` 应看到 controller attached / onPageEnd）；
+- [x] 冷启动：启动页 → 首页正常渲染，无白屏（`hilog | grep WordAtlas` 应看到 controller attached / onPageEnd）；
 - [ ] 同源 `fetch()`：`/atlas/index.json`、`/atlas/entries/N.json` 数据加载成功；
 - [ ] `<img>`/`<audio>`/`<video>` 媒体正常加载与播放（验证二进制响应未设 encoding）；
 - [ ] hash 路由切换正常，页面间返回键走 Web 后退；
@@ -108,9 +108,10 @@ ArkWeb 的 localStorage 落在 el2 cache 层，**没有持久化承诺**（可�
 
 ## 已知未验证项与升级路径
 
-ArkTS 已在 DevEco Studio 26（API 26 SDK）下编译通过并在模拟器验证启动链路（2026-10）：
-页面加载、虚拟域拦截、bootstrap 回灌、index.html 渲染均正常。
-以下 API 用法仍以真机验证为准，代码中相应位置带 `// VERIFY:` 注释：
+ArkTS 已在 DevEco Studio 26（API 26 SDK）下编译通过，并在模拟器与真机
+（HarmonyOS 7.0 / DEL-AL20）验证启动链路与核心交互（2026-10）：
+页面加载、虚拟域拦截、bootstrap 回灌、index.html 渲染、图鉴滚动、
+tabbar 稳定性（内滚动骨架）、键盘双层避让均正常。
 
 - **blob: URL 下载**：`<a download href=blob:...>` 是否到达 `WebDownloadDelegate` 未验证；
   delegate 回调里已埋好 `onBeforeDownload` 日志用于真机确认。若 blob 下载不可达，
@@ -119,10 +120,9 @@ ArkTS 已在 DevEco Studio 26（API 26 SDK）下编译通过并在模拟器验�
   真机需确认取消后前端 `<input type=file>` 流程正常收尾；
 - **软键盘**：`expandSafeArea` 全屏下键盘避让表现需真机确认；
 - **`navigator.share`**：系统分享面板可用性未验证；
-- **无录音例句的朗读（已接原生 TTS）**：网页经 `HarmonyShell.ttsSpeak/ttsStop` 桥调用
-  Core Speech Kit（API 26，`@kit.CoreSpeechKit`）。引擎懒创建并按参数候选链降级
-  （en-US 优先；模拟器引擎仅 zh-CN，英文文本会报 1002300009 并回退 toast）。
-  **VERIFY（真机）**：en-US 引擎可用性与音色效果；模拟器无法验证英文朗读。
+- **无录音例句的朗读（已接原生 TTS，真机验证通过）**：网页经 `HarmonyShell.ttsSpeak/ttsStop`
+  桥调用 Core Speech Kit（API 26，`@kit.CoreSpeechKit`）。引擎懒创建并按参数候选链降级
+  （真机/模拟器引擎均只接受 zh-CN 参数，但可正常朗读英文文本，实测 DEL-AL20 可听）。
 - **WebSchemeHandler**：性能更强的本地协议方案，**升级触发器 = 星图页面滚动掉帧**。
   仅在该现象真实出现时再实现，当前 `onInterceptRequest` 方案已满足需求（既定决策）。
 

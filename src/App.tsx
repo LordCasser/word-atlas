@@ -5,6 +5,7 @@ import { loadOpenAtlas, loadPrivateAtlas } from "./atlas/data";
 import type { Atlas } from "./atlas/types";
 import { REPO_URL } from "./config";
 import { closeWord, currentLocation, go, openWord, useLocation, type Route } from "./lib/router";
+import { initVisualViewportInset } from "./lib/vvPin";
 import { AtlasPage } from "./pages/Atlas";
 import { About } from "./pages/About";
 import { Learn } from "./pages/Learn";
@@ -38,6 +39,9 @@ function useTheme() {
     const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0D1120" : "#F6F1E7");
   }, [theme]);
+  // Pin bottom-fixed UI to the visual viewport (ArkWeb layout-viewport
+  // inflation on tall pages — see src/lib/vvPin.ts). App lifetime.
+  useEffect(() => initVisualViewportInset(), []);
   return theme;
 }
 
@@ -116,7 +120,11 @@ function Shell({ privateAvailable }: { privateAvailable: boolean }) {
   }, [focus]);
 
   useEffect(() => {
-    if (!word) window.scrollTo({ top: 0 });
+    if (!word) {
+      // Phone shell scrolls .main internally; desktop scrolls the window.
+      document.querySelector(".main")?.scrollTo?.({ top: 0 });
+      window.scrollTo({ top: 0 });
+    }
   }, [route.page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);

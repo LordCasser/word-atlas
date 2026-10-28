@@ -304,6 +304,10 @@ struct WebHost {
         .mediaPlayGestureAccess(false)
         .zoomAccess(false)
         .backgroundColor('#0D1120')
+        // 键盘弹出时不缩放任何视口（默认 RESIZE_CONTENT 会改 innerHeight，
+        // 造成页内布局回流、搜索组件位移）。键盘直接覆盖页面；
+        // 页内输入框均位于屏幕上半区，不会被键盘遮挡。
+        .keyboardAvoidMode(WebKeyboardAvoidMode.OVERLAYS_CONTENT)
         // target=_blank 走新窗口流程需开启 multiWindowAccess（官方文档：使能后 onWindowNew 才通知）。
         .multiWindowAccess(true)
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])

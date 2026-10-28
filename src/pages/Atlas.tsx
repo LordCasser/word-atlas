@@ -265,10 +265,14 @@ function useWindowRange(
       if (!raf) raf = requestAnimationFrame(update);
     };
     update();
+    // Scroll may arrive on window (desktop) or the .main scroller (phone shell).
+    const main = container.current?.closest(".main");
     window.addEventListener("scroll", on, { passive: true });
+    main?.addEventListener("scroll", on, { passive: true });
     window.addEventListener("resize", on);
     return () => {
       window.removeEventListener("scroll", on);
+      main?.removeEventListener("scroll", on);
       window.removeEventListener("resize", on);
       cancelAnimationFrame(raf);
     };
