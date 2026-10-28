@@ -1,0 +1,13 @@
+{
+  "modelVersion": "26.0.0",
+  "name": "word-atlas-harmony",
+  "version": "1.0.0",
+  "description": "Word Atlas HarmonyOS HAP shell (offline ArkWeb host for the word-atlas SPA)",
+  "main": "",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.25"
+  }
+}

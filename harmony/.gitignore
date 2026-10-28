@@ -1,0 +1,14 @@
+# DevEco / hvigor 构建产物
+oh_modules/
+build/
+.hvigor/
+.idea/
+local.properties
+*.har
+*.hsp
+
+# sync-www.sh 生成物：约 715MB 的前端产物（dist/ 镜像），绝不入库
+entry/src/main/resources/rawfile/www/
+
+# sync-www.sh 生成物：应用图标由 public/icon-512.png 拷贝而来
+AppScope/resources/base/media/app_icon.png

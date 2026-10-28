@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "Module_desc",
+      "value": "word-atlas 离线 HAP 壳模块（ArkWeb 虚拟域本地托管）"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "词光 Word Atlas 离线学习应用"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "词光 Word Atlas"
+    }
+  ]
+}

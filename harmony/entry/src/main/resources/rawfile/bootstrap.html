@@ -1,0 +1,27 @@
+<!doctype html>
+<!--
+  壳私有启动页（位于 rawfile 根，不在 www/ 内，由 WebHost.onInterceptRequest 特例路径提供）。
+
+  职责：每次启动把原生侧快照（filesDir/word-atlas/backup.json）回灌进 ArkWeb 的
+  localStorage —— ArkWeb 的 localStorage 落在 cache 层、无持久化承诺，此回灌与
+  WebHost 的运行中快照共同构成进度耐久性双保险。
+  仅回灌 ArkWeb 侧尚不存在的键（localStorage.getItem(k) === null），不覆盖较新数据。
+-->
+<html>
+  <body>
+    <script>
+      (async function () {
+        var s = '';
+        for (var i = 0; i < 100 && !window.HarmonyShell; i++) await new Promise(function (r) { setTimeout(r, 10); });
+        try { s = window.HarmonyShell ? window.HarmonyShell.readBackup() : ''; } catch (e) {}
+        if (s) {
+          try {
+            var o = JSON.parse(s);
+            for (var k in o) if (localStorage.getItem(k) === null) localStorage.setItem(k, o[k]);
+          } catch (e) {}
+        }
+        location.replace('index.html');
+      })();
+    </script>
+  </body>
+</html>
