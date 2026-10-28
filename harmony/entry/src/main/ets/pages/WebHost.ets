@@ -22,6 +22,7 @@ import { util } from '@kit.ArkTS';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { webview } from '@kit.ArkWeb';
+import { textToSpeech } from '@kit.CoreSpeechKit';
 
 const TAG = 'WordAtlas';
 const LOG_DOMAIN = 0x0000;
@@ -57,7 +58,144 @@ class HarmonyShellBridge {
   readBackup(): string {
     return this.backupJson;
   }
+
+  /**
+   * 原生 TTS 朗读（Core Speech Kit）。立即返回 requestId，结果经 window.__waTtsDone(id, ok) 回调。
+   * 引擎懒创建；失败也回调 ok=false，由网页侧决定降级。
+   */
+  ttsSpeak(text: string, rate: number): string {
+    const safeText = text ?? '';
+    const safeRate = rate > 0 ? rate : 1;
+    return tts.speak(safeText, safeRate);
+  }
+
+  /** 停止原生 TTS 播放。 */
+  ttsStop(): void {
+    tts.stop();
+  }
 }
+
+/**
+ * Core Speech Kit TTS 引擎封装（API 26 / @kit.CoreSpeechKit）。
+ * 引擎全进程最多 3 个实例，故模块级单例、懒创建、常驻（随应用进程销毁）。
+ * 引擎仅支持 zh-CN / en-US：英式发音降级为美式音色（VERIFY: 真机音色确认）。
+ */
+class TtsEngineBox {
+  private engine: textToSpeech.TextToSpeechEngine | null = null;
+  private creating: Promise<boolean> | null = null;
+  private seq: number = 0;
+  /** 播放结束/失败回调（由 WebHost 注入，转发回网页 __waTtsDone）。 */
+  onDone: ((id: string, ok: boolean) => void) | null = null;
+
+  /**
+   * 引擎创建参数候选链：d.ts 只要求 language/person/online，不枚举合法 person 值，
+   * 不同设备引擎接受度不同（模拟器实测 person:0 被拒 1002300003），逐个降级尝试。
+   */
+  private candidates(): textToSpeech.CreateEngineParams[] {
+    const mk = (language: string, person: number, online: number): textToSpeech.CreateEngineParams => {
+      return { language: language, person: person, online: online };
+    };
+    return [mk('en-US', 0, 1), mk('en-US', 1, 0), mk('en-US', 0, 0), mk('zh-CN', 0, 1), mk('en-US', 1, 1)];
+  }
+
+  /** 懒创建引擎；逐候选降级，全部失败后可重试。 */
+  ensure(): Promise<boolean> {
+    if (this.engine) {
+      return Promise.resolve(true);
+    }
+    if (!this.creating) {
+      this.creating = this.tryCreate(this.candidates(), 0);
+    }
+    return this.creating;
+  }
+
+  private tryCreate(candidates: textToSpeech.CreateEngineParams[], index: number): Promise<boolean> {
+    if (index >= candidates.length) {
+      hilog.error(LOG_DOMAIN, TAG, 'tts createEngine failed: all %{public}d param candidates rejected', candidates.length);
+      this.creating = null; // 允许下次重试（引擎可能稍后可用）。
+      return Promise.resolve(false);
+    }
+    const params = candidates[index];
+    return textToSpeech.createEngine(params)
+      .then((engine: textToSpeech.TextToSpeechEngine): boolean => {
+        const listener: textToSpeech.SpeakListener = {
+          onStart: (_requestId: string, _response: textToSpeech.StartResponse): void => {
+          },
+          onComplete: (requestId: string, _response: textToSpeech.CompleteResponse): void => {
+            this.onDone?.(requestId, true);
+          },
+          onStop: (requestId: string, _response: textToSpeech.StopResponse): void => {
+            this.onDone?.(requestId, true);
+          },
+          onError: (requestId: string, errorCode: number, errorMessage: string): void => {
+            hilog.error(LOG_DOMAIN, TAG, 'tts onError %{public}d %{public}s', errorCode, errorMessage);
+            this.onDone?.(requestId, false);
+          }
+        };
+        engine.setListener(listener);
+        this.engine = engine;
+        hilog.info(LOG_DOMAIN, TAG, 'tts engine created (lang=%{public}s person=%{public}d online=%{public}d)',
+          params.language, params.person, params.online);
+        return true;
+      })
+      .catch((err: BusinessError): Promise<boolean> => {
+        hilog.error(LOG_DOMAIN, TAG, 'tts candidate %{public}d rejected: %{public}s', index, `${err.code} ${err.message}`);
+        return this.tryCreate(candidates, index + 1);
+      });
+  }
+
+  /** 发起朗读：生成 requestId，引擎就绪后合成播放；结果经 onDone 回调。 */
+  speak(text: string, rate: number): string {
+    this.seq += 1;
+    const id = `wa-tts-${this.seq}`;
+    const clamped = Math.min(2, Math.max(0.5, rate));
+    this.ensure().then((ok: boolean) => {
+      if (!ok) {
+        this.onDone?.(id, false);
+        return;
+      }
+      this.startSpeak(id, text, clamped);
+    });
+    return id;
+  }
+
+  private startSpeak(id: string, text: string, rate: number): void {
+    const engine = this.engine;
+    if (!engine) {
+      this.onDone?.(id, false);
+      return;
+    }
+    const extra: Record<string, Object> = { 'speed': rate };
+    const params: textToSpeech.SpeakParams = { requestId: id, extraParams: extra };
+    try {
+      engine.speak(text, params);
+    } catch (e) {
+      // speed 等参数不被当前引擎接受时，去参重试一次。
+      const fallback: textToSpeech.SpeakParams = { requestId: id };
+      try {
+        engine.speak(text, fallback);
+      } catch (e2) {
+        hilog.error(LOG_DOMAIN, TAG, 'tts speak failed: %{public}s', this.errText(e2));
+        this.onDone?.(id, false);
+      }
+    }
+  }
+
+  stop(): void {
+    try {
+      this.engine?.stop();
+    } catch (e) {
+      hilog.error(LOG_DOMAIN, TAG, 'tts stop failed: %{public}s', this.errText(e));
+    }
+  }
+
+  private errText(e: Object): string {
+    const err = e as BusinessError;
+    return `${err.code} ${err.message}`;
+  }
+}
+
+const tts = new TtsEngineBox();
 
 @Entry
 @Component
@@ -72,6 +210,14 @@ struct WebHost {
   aboutToAppear(): void {
     // 启动快照回灌：读出备份交给 bootstrap.html（在拦截器中特例提供）。
     this.bridge.setBackupJson(this.readBackupSync());
+    // TTS 结果转发回网页（window.__waTtsDone）。
+    tts.onDone = (id: string, ok: boolean): void => {
+      try {
+        this.controller.runJavaScript(`window.__waTtsDone && window.__waTtsDone('${id}', ${ok ? 'true' : 'false'})`);
+      } catch (e) {
+        hilog.error(LOG_DOMAIN, TAG, 'tts done notify failed: %{public}s', this.errText(e));
+      }
+    };
     try {
       // VERIFY: setWebDebuggingAccess 为 WebviewController 的静态方法（官方文档已核，API 9+）。
       webview.WebviewController.setWebDebuggingAccess(isDebug);
@@ -164,7 +310,7 @@ struct WebHost {
         .javaScriptProxy({
           name: 'HarmonyShell',
           object: this.bridge,
-          methodList: ['readBackup'],
+          methodList: ['readBackup', 'ttsSpeak', 'ttsStop'],
           controller: this.controller
         })
         .onControllerAttached(() => {

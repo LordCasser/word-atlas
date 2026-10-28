@@ -75,6 +75,7 @@ cd harmony
 | 文件选择器 | `onShowFileSelector` → `DocumentViewPicker.select()`，结果 `handleFileList([uri])`，取消/失败 `handleFileList([])`（公开 API 无 `handleCancel`），返回 `true` |
 | 返回键 | `onBackPress`：Web 可后退则后退；否则 2 秒内二次按 → `moveAbilityToBackground()`；首次 toast「再按一次退出」 |
 | web 调试 | `setWebDebuggingAccess(isDebug)`，`isDebug` 常量默认 `false`，联调时临时改 `true` |
+| 原生 TTS | `HarmonyShell.ttsSpeak/ttsStop` → Core Speech Kit（引擎懒创建、参数候选链降级）；结果经 `window.__waTtsDone` 回传网页 |
 
 ## localStorage 快照层（进度耐久性双保险）
 
@@ -118,9 +119,10 @@ ArkTS 已在 DevEco Studio 26（API 26 SDK）下编译通过并在模拟器验�
   真机需确认取消后前端 `<input type=file>` 流程正常收尾；
 - **软键盘**：`expandSafeArea` 全屏下键盘避让表现需真机确认；
 - **`navigator.share`**：系统分享面板可用性未验证；
-- **无录音例句的朗读**：ArkWeb 无 TTS 语音（speechSynthesis 零 voices），无录音的例句
-  （如多数词条的第二例句）点击后提示「此例句暂无朗读录音」。若产品要求这类例句可听，
-  升级路径是原生侧接 Core Speech Kit 的 textToSpeech，经 HarmonyShell 桥暴露给网页；
+- **无录音例句的朗读（已接原生 TTS）**：网页经 `HarmonyShell.ttsSpeak/ttsStop` 桥调用
+  Core Speech Kit（API 26，`@kit.CoreSpeechKit`）。引擎懒创建并按参数候选链降级
+  （en-US 优先；模拟器引擎仅 zh-CN，英文文本会报 1002300009 并回退 toast）。
+  **VERIFY（真机）**：en-US 引擎可用性与音色效果；模拟器无法验证英文朗读。
 - **WebSchemeHandler**：性能更强的本地协议方案，**升级触发器 = 星图页面滚动掉帧**。
   仅在该现象真实出现时再实现，当前 `onInterceptRequest` 方案已满足需求（既定决策）。
 
