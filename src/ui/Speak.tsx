@@ -1,6 +1,7 @@
 import { Volume2 } from "lucide-react";
 import { useState } from "react";
 import { play } from "../lib/audio";
+import { toast } from "./Toast";
 
 export function Speak({
   url,
@@ -26,7 +27,8 @@ export function Speak({
     e.stopPropagation();
     setOn(true);
     try {
-      await play(url, text, accent, rate);
+      const how = await play(url, text, accent, rate);
+      if (how === "unsupported") toast("此例句暂无朗读录音", "warn");
     } finally {
       setOn(false);
     }

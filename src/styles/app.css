@@ -39,7 +39,10 @@
   --r-xl: 32px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --spring: cubic-bezier(0.34, 1.4, 0.5, 1);
-  --top: 68px;
+  /* Top bar height. Includes the safe-area inset so sticky offset, scroll
+     anchors and viewport math all stay correct in notched/immersive contexts
+     (HarmonyOS HAP, iOS standalone PWA). Zero on plain browsers. */
+  --top: calc(68px + env(safe-area-inset-top));
   --tab: 0px;
   --gutter: 20px;
   color-scheme: light;
@@ -556,7 +559,10 @@ code {
   position: sticky;
   top: 0;
   z-index: 30;
-  height: var(--top);
+  min-height: var(--top);
+  /* Push the bar contents below the status bar / notch in immersive mode;
+     the painted background still bleeds to the very top of the screen. */
+  padding-top: env(safe-area-inset-top);
   display: flex;
   align-items: center;
   gap: 16px;

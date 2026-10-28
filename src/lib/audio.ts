@@ -20,6 +20,29 @@ export async function play(url: string | null | undefined, text: string, accent:
   }
 }
 
+/**
+ * Device-TTS availability. Webviews without a speech engine (e.g. ArkWeb)
+ * expose speechSynthesis but ship zero voices and silently drop utterances,
+ * which made speak buttons feel dead. Probe voices once, bounded wait.
+ */
+let voicesProbe: Promise<boolean> | null = null;
+function hasVoices(): Promise<boolean> {
+  if (!("speechSynthesis" in window)) return Promise.resolve(false);
+  if (speechSynthesis.getVoices().length > 0) return Promise.resolve(true);
+  voicesProbe ??= new Promise<boolean>((resolve) => {
+    const settle = (ok: boolean) => {
+      speechSynthesis.onvoiceschanged = null;
+      resolve(ok);
+    };
+    const timer = setTimeout(() => settle(speechSynthesis.getVoices().length > 0), 1500);
+    speechSynthesis.onvoiceschanged = () => {
+      clearTimeout(timer);
+      settle(speechSynthesis.getVoices().length > 0);
+    };
+  });
+  return voicesProbe;
+}
+
 async function speak(url: string | null | undefined, text: string, accent: "uk" | "us", rate: number) {
   stopAudio();
   const mine = ++token;
@@ -40,6 +63,7 @@ async function speak(url: string | null | undefined, text: string, accent: "uk" 
     }
   }
   if (!("speechSynthesis" in window)) return "unsupported" as const;
+  if (!(await hasVoices())) return "unsupported" as const;
   const u = new SpeechSynthesisUtterance(text);
   u.lang = accent === "uk" ? "en-GB" : "en-US";
   u.rate = rate * 0.95;

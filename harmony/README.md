@@ -118,6 +118,9 @@ ArkTS 已在 DevEco Studio 26（API 26 SDK）下编译通过并在模拟器验�
   真机需确认取消后前端 `<input type=file>` 流程正常收尾；
 - **软键盘**：`expandSafeArea` 全屏下键盘避让表现需真机确认；
 - **`navigator.share`**：系统分享面板可用性未验证；
+- **无录音例句的朗读**：ArkWeb 无 TTS 语音（speechSynthesis 零 voices），无录音的例句
+  （如多数词条的第二例句）点击后提示「此例句暂无朗读录音」。若产品要求这类例句可听，
+  升级路径是原生侧接 Core Speech Kit 的 textToSpeech，经 HarmonyShell 桥暴露给网页；
 - **WebSchemeHandler**：性能更强的本地协议方案，**升级触发器 = 星图页面滚动掉帧**。
   仅在该现象真实出现时再实现，当前 `onInterceptRequest` 方案已满足需求（既定决策）。
 
