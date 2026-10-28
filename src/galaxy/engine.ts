@@ -180,7 +180,11 @@ export class GalaxyEngine {
   private raf = 0;
   private t0 = performance.now();
   private last = performance.now();
+  private last2d = 0;
   private introStart = performance.now();
+  private bg2d: CanvasGradient | null = null;
+  private bg2dW = 0;
+  private bg2dH = 0;
   private running = false;
   private w = 1;
   private h = 1;
@@ -263,7 +267,9 @@ export class GalaxyEngine {
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     const first = this.w === 1;
-    this.dpr = Math.min(window.devicePixelRatio || 1, this.opts.quality === "low" ? 1.25 : 2);
+    // Software 2D path caps DPR harder: pixel count is the dominant cost there.
+    const dprCap = this.gl ? (this.opts.quality === "low" ? 1.25 : 2) : 1.5;
+    this.dpr = Math.min(window.devicePixelRatio || 1, dprCap);
     this.w = Math.max(1, rect.width);
     this.h = Math.max(1, rect.height);
     this.canvas.width = Math.round(this.w * this.dpr);
@@ -305,8 +311,18 @@ export class GalaxyEngine {
     if (this.running) return;
     this.running = true;
     this.last = performance.now();
+    if (!this.gl) {
+      // Software-rasterized 2D path (no-WebGL webviews): 30 fps is plenty and
+      // keeps the compositor alive; 60 fps fillRect(x7298) starves it.
+      this.last2d = 0;
+    }
     const loop = (now: number) => {
       if (!this.running) return;
+      if (!this.gl && now - this.last2d < 33) {
+        this.raf = requestAnimationFrame(loop);
+        return;
+      }
+      this.last2d = now;
       this.frame(now);
       this.raf = requestAnimationFrame(loop);
     };
@@ -445,20 +461,30 @@ export class GalaxyEngine {
     const g = this.ctx2d;
     if (!g) return;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    const bg = g.createRadialGradient(this.w / 2, this.h / 2, 0, this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.7);
-    bg.addColorStop(0, "#1b1d38");
-    bg.addColorStop(1, "#090c18");
-    g.fillStyle = bg;
+    // Cache the background gradient: building it per frame dominates the 2D
+    // path's cost on software-rendered webviews.
+    if (!this.bg2d || this.bg2dW !== this.w || this.bg2dH !== this.h) {
+      const bg = g.createRadialGradient(this.w / 2, this.h / 2, 0, this.w / 2, this.h / 2, Math.max(this.w, this.h) * 0.7);
+      bg.addColorStop(0, "#1b1d38");
+      bg.addColorStop(1, "#090c18");
+      this.bg2d = bg;
+      this.bg2dW = this.w;
+      this.bg2dH = this.h;
+    }
+    g.fillStyle = this.bg2d;
     g.fillRect(0, 0, this.w, this.h);
     this.project();
     g.globalCompositeOperation = "lighter";
     const c = this.layout.colors;
+    const tw = this.opts.reducedMotion ? 0.7 : 0.7 + 0.3 * Math.sin(t);
     for (let i = 0; i < this.layout.n; i++) {
       const d = this.screen[i * 3 + 2];
       if (d <= 0) continue;
       const st = this.states[i];
       const size = (st > 2.5 ? 7 : st > 1.5 ? 5 : st > 0.5 ? 3.5 : 1.3) * (i === this.hover ? 2 : 1) * Math.min(this.w, this.h) / 520 / d;
-      const a = (st > 0.5 ? 0.9 : 0.3 * (0.7 + 0.3 * Math.sin(t + i))) * intro;
+      // Shared twinkle phase for unlit stars (per-star sin() over 7298 items
+      // is wasted work in software rasterization; lit stars keep steady alpha).
+      const a = (st > 0.5 ? 0.9 : 0.3 * tw) * intro;
       g.fillStyle = `rgba(${(c[i * 3] * 255) | 0},${(c[i * 3 + 1] * 255) | 0},${(c[i * 3 + 2] * 255) | 0},${a})`;
       g.fillRect(this.screen[i * 3] - size / 2, this.screen[i * 3 + 1] - size / 2, Math.max(1, size), Math.max(1, size));
     }

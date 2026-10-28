@@ -560,13 +560,13 @@ code {
   top: 0;
   z-index: 30;
   min-height: var(--top);
-  /* Push the bar contents below the status bar / notch in immersive mode;
-     the painted background still bleeds to the very top of the screen. */
-  padding-top: env(safe-area-inset-top);
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 0 max(var(--gutter), calc((100vw - 1200px) / 2 + var(--gutter)));
+  /* Top padding = status-bar inset so content sits just below it while the
+     painted background still bleeds to the very top of the screen. Keep the
+     inset inside this shorthand: a later `padding: 0 …` would reset it. */
+  padding: env(safe-area-inset-top) max(var(--gutter), calc((100vw - 1200px) / 2 + var(--gutter))) 0;
   background: color-mix(in oklab, var(--paper) 82%, transparent);
   backdrop-filter: saturate(1.4) blur(16px);
   -webkit-backdrop-filter: saturate(1.4) blur(16px);
@@ -590,6 +590,9 @@ code {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  /* The bar is a tight flex row on phones: never let the wordmark wrap
+     into vertical characters when space runs out. */
+  white-space: nowrap;
 }
 .logo-text b {
   font: 700 21px/1 "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", serif;
@@ -674,6 +677,24 @@ code {
   }
   .hide-sm {
     display: none;
+  }
+  /* Phone-width top bar: shrink the wordmark so logo + tools fit on one
+     line instead of squeezing 词光 into a vertical column. */
+  .topbar {
+    gap: 8px;
+  }
+  .logo {
+    gap: 7px;
+    min-width: 0;
+  }
+  .logo-text {
+    gap: 6px;
+  }
+  .logo-text b {
+    font-size: 17px;
+  }
+  .logo-text small {
+    font-size: 12px;
   }
 }
 

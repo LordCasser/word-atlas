@@ -86,9 +86,15 @@ export function Galaxy({
     const vis = () => (document.hidden ? eng.stop() : eng.start());
     document.addEventListener("visibilitychange", vis);
     if (mode === "full") {
+      let lastLabels = 0;
       eng.onFrame = () => {
         const box = labels.current;
         if (!box) return;
+        // Label projection is DOM-throttled: every frame forces style/layout on
+        // software-rendered webviews; 100 ms reads as smooth for drifting text.
+        const now = performance.now();
+        if (now - lastLabels < 100) return;
+        lastLabels = now;
         const kids = box.children as HTMLCollectionOf<HTMLElement>;
         layout.topicCenters.forEach(([x, y, z], t) => {
           const el = kids[t];
